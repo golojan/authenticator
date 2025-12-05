@@ -1,0 +1,50 @@
+{
+  "name": "@degolojan/core",
+  "version": "1.1.0",
+  "description": "Golojan OAuth helper for generating authorization URLs with PKCE support.",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check-types": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "golojan",
+    "oauth",
+    "pkce",
+    "auth",
+    "npm",
+    "degolojan"
+  ],
+  "author": "Golojan <agu.chux@golojan.co.uk>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/golojan/golojan.git",
+    "directory": "packages/core"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@golojan/typescript-config": "../typescript-config",
+    "@types/node": "^22.15.3"
+  }
+}
