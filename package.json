@@ -38,8 +38,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check-types": "tsc -p tsconfig.json --noEmit",
-    "patch": "npm version patch && npm run publish",
-    "publish": "npm run patch"
+    "patch": "npm run build && npm version patch && npm run publish"
   },
   "devDependencies": {
     "@golojan/typescript-config": "../typescript-config",
