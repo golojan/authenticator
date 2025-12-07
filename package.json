@@ -1,6 +1,6 @@
 {
   "name": "@golojan/auth",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "private": false,
   "description": "Golojan OAuth helper for generating authorization URLs with PKCE support.",
   "keywords": [
