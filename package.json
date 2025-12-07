@@ -1,25 +1,8 @@
 {
-  "name": "@degolojan/core",
-  "version": "1.1.0",
-  "description": "Golojan OAuth helper for generating authorization URLs with PKCE support.",
-  "type": "module",
+  "name": "@golojan/auth",
+  "version": "1.2.2",
   "private": false,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ],
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "check-types": "tsc -p tsconfig.json --noEmit"
-  },
+  "description": "Golojan OAuth helper for generating authorization URLs with PKCE support.",
   "keywords": [
     "golojan",
     "oauth",
@@ -28,23 +11,49 @@
     "npm",
     "degolojan"
   ],
-  "author": "Golojan <agu.chux@golojan.co.uk>",
-  "license": "MIT",
+  "homepage": "https://github.com/golojan/golojan#readme",
+  "bugs": {
+    "url": "https://github.com/golojan/golojan/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/golojan/golojan.git",
+    "url": "git+https://github.com/golojan/golojan.git",
     "directory": "packages/core"
+  },
+  "license": "MIT",
+  "author": "Golojan <agu.chux@golojan.co.uk>",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check-types": "tsc -p tsconfig.json --noEmit",
+    "patch": "npm version patch && npm run publish",
+    "publish": "npm run patch"
+  },
+  "devDependencies": {
+    "@golojan/typescript-config": "../typescript-config",
+    "@types/node": "^22.15.3",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "@golojan/typescript-config": "../typescript-config",
-    "@types/node": "^22.15.3"
+  "dependencies": {
+    "axios": "1.13.2"
   }
 }
