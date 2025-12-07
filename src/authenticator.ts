@@ -1,19 +1,20 @@
-import { createHash, createHmac, randomBytes } from "node:crypto"
+import axios, { type AxiosError } from "axios"
 import { authConfig } from "./env"
+import axiosInstance from "./utils/axios"
 
 export type AuthenticatorOptions = {
   /** OAuth redirect URI registered with the client */
   redirectUri: string
   /** Optional space or array separated scopes */
   scope?: string | string[]
-  /** OAuth response type; defaults to `code` */
-  responseType?: string
-  /** Optional CSRF token; generated when omitted */
+  /** Optional CSRF token */
   state?: string
-  /** Authorization endpoint; defaults to the Golojan accounts endpoint */
-  authUrl?: string
-  /** Additional query parameters to append to the authorize URL */
-  extraParams?: Record<string, string | number | boolean | null | undefined>
+  /** Optional nonce forwarded to the authorisation server */
+  nonce?: string
+  /** Authenticated user identifier issuing the authorisation request */
+  userId?: number
+  /** Additional properties appended to the authorisation payload */
+  extraParams?: Record<string, unknown>
 }
 
 export type AuthenticatorConfig = {
@@ -22,104 +23,127 @@ export type AuthenticatorConfig = {
   options?: AuthenticatorOptions
 }
 
-export type AuthenticatorResponse = {
-  uri: string
-  success: boolean
-  state: string
-  issuedAt: string
-  codeVerifier: string
-  codeChallenge: string
-  params: Record<string, string>
+export type AuthoriseOverrides = Partial<AuthenticatorOptions>
+export type AuthorizeOverrides = AuthoriseOverrides
+
+export type TokenRequestDto = {
+  grantType: "authorization_code" | "refresh_token"
+  code?: string
+  clientId?: string
+  redirectUri?: string
+  refreshToken?: string
 }
 
-export async function Authenticator({ clientId, clientSecret, options }: AuthenticatorConfig): Promise<AuthenticatorResponse> {
-  validateRequired("clientId", clientId)
-  validateRequired("clientSecret", clientSecret)
+type ResolvedOptions = Required<Pick<AuthenticatorOptions, "redirectUri">> &
+  Omit<AuthenticatorOptions, "redirectUri">
 
-  const mergedOptions = normalizeOptions(options)
-  validateRequired("options.redirectUri", mergedOptions.redirectUri)
+const AUTHORISE_ENDPOINT = "/authorize"
 
-  const { codeVerifier, codeChallenge } = derivePkcePair(clientSecret)
-  const state = mergedOptions.state ?? generateToken(24)
+export class Authenticator {
+  private readonly clientId: string
+  private readonly clientSecret: string
+  private readonly baseOptions?: AuthenticatorOptions
 
-  const params: Record<string, string> = {
-    client_id: clientId,
-    redirect_uri: mergedOptions.redirectUri,
-    response_type: mergedOptions.responseType ??  authConfig.DEFAULT_RESPONSE_TYPE,
-    scope: toScopeString(mergedOptions.scope),
-    state,
-    code_challenge: codeChallenge,
-    code_challenge_method: authConfig.CODE_CHALLENGE_METHOD,
+  constructor({ clientId, clientSecret, options }: AuthenticatorConfig) {
+    validateRequired("clientId", clientId)
+    validateRequired("clientSecret", clientSecret)
+
+    this.clientId = clientId
+    this.clientSecret = clientSecret
+    this.baseOptions = options ? { ...options } : undefined
   }
 
-  if (mergedOptions.extraParams) {
-    for (const [key, value] of Object.entries(mergedOptions.extraParams)) {
-      if (value === undefined || value === null) {
-        continue
-      }
-      params[key] = String(value)
+  async authorise(overrides?: AuthoriseOverrides): Promise<TokenRequestDto> {
+    const resolved = resolveOptions(this.baseOptions, overrides)
+
+    validateRequired("options.redirectUri", resolved.redirectUri)
+
+    const payload = buildAuthorizationPayload(this.clientId, this.clientSecret, resolved)
+
+    try {
+      const { data } = await axiosInstance.post<TokenRequestDto>(AUTHORISE_ENDPOINT, payload)
+      return data
+    } catch (error) {
+      throw toAuthorizationError(error)
     }
   }
 
-  const authorizeUrl = buildAuthorizeUrl(mergedOptions.authUrl ?? authConfig.DEFAULT_AUTH_URL, params)
+  async authorize(overrides?: AuthoriseOverrides): Promise<TokenRequestDto> {
+    return this.authorise(overrides)
+  }
+}
 
+function resolveOptions(base?: AuthenticatorOptions, override?: AuthoriseOverrides): ResolvedOptions {
+  if (!base && !override) {
+    return normalizeOptions()
+  }
+
+  const mergedExtraParams = {
+    ...(base?.extraParams ?? {}),
+    ...(override?.extraParams ?? {}),
+  }
+
+  const merged: Partial<AuthenticatorOptions> = {
+    ...(base ?? {}),
+    ...(override ?? {}),
+  }
+
+  if (Object.keys(mergedExtraParams).length > 0) {
+    merged.extraParams = mergedExtraParams
+  }
+
+  return normalizeOptions(merged)
+}
+
+function normalizeOptions(options?: Partial<AuthenticatorOptions>): ResolvedOptions {
   return {
-    uri: authorizeUrl,
-    success: true,
-    state,
-    issuedAt: new Date().toISOString(),
-    codeVerifier,
-    codeChallenge,
-    params,
+    redirectUri: options?.redirectUri?.trim() ?? "",
+    scope: options?.scope ?? authConfig.DEFAULT_SCOPE,
+    state: options?.state,
+    nonce: options?.nonce,
+    userId: typeof options?.userId === "number" ? options.userId : undefined,
+    extraParams: options?.extraParams,
   }
 }
 
-function normalizeOptions(options?: AuthenticatorOptions): Required<Omit<AuthenticatorOptions, "extraParams">> & { extraParams?: AuthenticatorOptions["extraParams"] } {
-  const normalized: AuthenticatorOptions = options ? { ...options } : ({
-    redirectUri: "",
-  } as AuthenticatorOptions)
-
-  if (!normalized.responseType) {
-    normalized.responseType = authConfig.DEFAULT_RESPONSE_TYPE
-  }
-  if (!normalized.scope) {
-    normalized.scope = authConfig.DEFAULT_SCOPE
-  }
-  if (!normalized.authUrl) {
-    normalized.authUrl = authConfig.DEFAULT_AUTH_URL
+function buildAuthorizationPayload(
+  clientId: string,
+  clientSecret: string,
+  options: ResolvedOptions,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    clientId,
+    clientSecret,
+    redirectUri: options.redirectUri,
   }
 
-  return normalized as Required<Omit<AuthenticatorOptions, "extraParams">> & { extraParams?: AuthenticatorOptions["extraParams"] }
-}
-
-function buildAuthorizeUrl(base: string, params: Record<string, string>): string {
-  let url: URL
-  try {
-    url = new URL(base)
-  } catch (error) {
-    throw new Error(`Invalid authorization endpoint: ${base}`)
+  const scopeValue = toScopeString(options.scope)
+  if (scopeValue) {
+    payload.scope = scopeValue
   }
 
-  url.search = ""
-  const search = new URLSearchParams()
-  for (const [key, value] of Object.entries(params)) {
-    search.set(key, value)
+  if (options.state) {
+    payload.state = options.state
   }
-  url.search = search.toString()
-  return url.toString()
-}
 
-function derivePkcePair(clientSecret: string): { codeVerifier: string; codeChallenge: string } {
-  const salt = randomBytes(32)
-  const verifierBuffer = createHmac("sha256", clientSecret).update(salt).digest()
-  const codeVerifier = toBase64Url(verifierBuffer)
-  const codeChallenge = toBase64Url(createHash("sha256").update(codeVerifier).digest())
+  if (options.nonce) {
+    payload.nonce = options.nonce
+  }
 
-  return { codeVerifier, codeChallenge }
-}
+  if (typeof options.userId === "number") {
+    payload.userId = options.userId
+  }
 
-function generateToken(bytes = 16): string {
-  return toBase64Url(randomBytes(bytes))
+  if (options.extraParams) {
+    for (const [key, value] of Object.entries(options.extraParams)) {
+      if (value === undefined) {
+        continue
+      }
+      payload[key] = value
+    }
+  }
+
+  return payload
 }
 
 function toScopeString(scope?: string | string[]): string {
@@ -132,17 +156,46 @@ function toScopeString(scope?: string | string[]): string {
   return scope
 }
 
-function toBase64Url(input: Buffer | string): string {
-  const buffer = typeof input === "string" ? Buffer.from(input, "utf8") : input
-  return buffer
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "")
-}
-
 function validateRequired(field: string, value: string | undefined | null) {
   if (!value || value.trim().length === 0) {
     throw new Error(`${field} is required`)
   }
+}
+
+function toAuthorizationError(error: unknown): Error {
+  if (axios.isAxiosError(error)) {
+    const message = extractAxiosMessage(error)
+    const status = error.response?.status
+    const statusText = status ? ` with status ${status}` : ""
+    const details = message ? `: ${message}` : "."
+    const err = new Error(`Authorisation request failed${statusText}${details}`)
+    err.name = "AuthenticatorError"
+    return err
+  }
+
+  return error instanceof Error ? error : new Error("Authorisation request failed.")
+}
+
+function extractAxiosMessage(error: AxiosError): string | undefined {
+  const data = error.response?.data
+
+  if (!data) {
+    return error.message
+  }
+
+  if (typeof data === "string") {
+    return data
+  }
+
+  if (typeof data === "object") {
+    if (typeof (data as { message?: unknown }).message === "string") {
+      return (data as { message?: string }).message
+    }
+
+    if (typeof (data as { error?: unknown }).error === "string") {
+      return (data as { error?: string }).error
+    }
+  }
+
+  return undefined
 }

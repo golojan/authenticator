@@ -1,6 +1,6 @@
 # @golojan/oath
 
-Light-weight OAuth helper that produces ready-to-use authorization URLs (including PKCE parameters) for the Golojan account service. The package exposes a single `Authenticator` function that accepts your client credentials and returns the URL your users should visit to start the login flow.
+Light-weight OAuth helper that sends authorization requests to the Golojan Auth Service and returns the `TokenRequestDto` payload expected by the token endpoint. Instantiate the `Authenticator` class with your client credentials and call `authorise()` (or `authorize()`) to let the platform validate your client, secret, and registered application metadata.
 
 ## Build
 
@@ -13,40 +13,23 @@ npm run build -w apps/oath
 ```ts
 import { Authenticator } from "@golojan/oath"
 
-async function createLoginUrl() {
-  const response = await Authenticator({
+async function requestAuthorisation() {
+  const authenticator = new Authenticator({
     clientId: "photos-app",
     clientSecret: "super-secret-value",
     options: {
       redirectUri: "https://photos.golojan.com/auth/callback",
       scope: ["openid", "profile", "email"],
-      extraParams: {
-        prompt: "consent",
-      },
     },
   })
 
-  if (response.success) {
-    console.log("Send user to:", response.uri)
-    console.log("Persist code_verifier:", response.codeVerifier)
-  }
+  const tokenRequest = await authenticator.authorise()
+
+  console.log("Token request payload:", tokenRequest)
 }
 ```
 
-The generated URI matches the expected Golojan OAuth pattern:
-
-```
-https://accounts.golojan.com/oauth2/authorize?
-  client_id=photos-app&
-  redirect_uri=https%3A%2F%2Fphotos.golojan.com%2Fauth%2Fcallback&
-  response_type=code&
-  scope=openid%20profile%20email&
-  state=<random_csrf_token>&
-  code_challenge=<pkce_challenge>&
-  code_challenge_method=S256
-```
-
-Persist the returned `codeVerifier` securely—you will need it during the token exchange step.
+The returned object is a direct `TokenRequestDto` from the Auth Service. Persist or forward it to your token exchange logic as required by your application.
 
 ## API
 
@@ -54,26 +37,32 @@ Persist the returned `codeVerifier` securely—you will need it during the token
 type AuthenticatorOptions = {
   redirectUri: string
   scope?: string | string[]
-  responseType?: string
   state?: string
-  authUrl?: string
-  extraParams?: Record<string, string | number | boolean | null | undefined>
+  nonce?: string
+  userId?: number
+  extraParams?: Record<string, unknown>
 }
 
 type AuthenticatorConfig = {
   clientId: string
   clientSecret: string
-  options: AuthenticatorOptions
+  options?: AuthenticatorOptions
 }
 
-type AuthenticatorResponse = {
-  uri: string
-  success: boolean
-  state: string
-  issuedAt: string
-  codeVerifier: string
-  codeChallenge: string
-  params: Record<string, string>
+type AuthoriseOverrides = Partial<AuthenticatorOptions>
+
+type TokenRequestDto = {
+  grantType: "authorization_code" | "refresh_token"
+  code?: string
+  clientId?: string
+  redirectUri?: string
+  refreshToken?: string
+}
+
+class Authenticator {
+  constructor(config: AuthenticatorConfig)
+  authorise(overrides?: AuthoriseOverrides): Promise<TokenRequestDto>
+  authorize(overrides?: AuthoriseOverrides): Promise<TokenRequestDto>
 }
 ```
 
@@ -81,9 +70,9 @@ type AuthenticatorResponse = {
 | ------------- | ------------------------------------------------------------ | -------------------------------------- |
 | `redirectUri` | Registered redirect URI (required)                           | —                                      |
 | `scope`       | Requested scopes (`string` or `string[]`)                    | `"openid profile email"`               |
-| `responseType`| OAuth response type                                         | `"code"`                               |
-| `state`       | Optional CSRF token (random value generated when omitted)    | random 24-byte string                  |
-| `authUrl`     | Authorization endpoint                                      | `https://accounts.golojan.com/oauth2/authorize` |
-| `extraParams` | Additional key/value query parameters                        | —                                      |
+                                   |
 
-The response always sets `success` to `true` when the URI is generated successfully and includes the PKCE verifier/challenge pair alongside the computed query parameters.
+> **Note:** Provide a `redirectUri` either when constructing the `Authenticator` or via the overrides passed to `authorise()`/`authorize()`.
+
+The method resolves with the `TokenRequestDto` returned by the Auth Service when the request succeeds.
+
