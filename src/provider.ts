@@ -24,26 +24,22 @@ export default function GolojanProvider<P extends GolojanProfile>(
     token: userToken,
     userinfo: userUserinfo,
     profile: userProfile,
-    client: userClient,
     checks: userChecks,
+    client: userClient,
     ...rest
   } = options
 
-  const authorization = resolveAuthorization(userAuthorization)
+  const authorization = normalizeAuthorization(userAuthorization)
   const token = userToken ?? { url: TOKEN_URL }
   const userinfo = userUserinfo ?? { url: USERINFO_URL }
+  const checks = normalizeChecks(userChecks)
+  const client = normalizeClient(userClient)
   const profile = userProfile ?? mapProfile
-  const checks = mergeChecks(userChecks)
-  const client = {
-    token_endpoint_auth_method: "client_secret_post" as const,
-    ...(userClient ?? {}),
-  }
 
   return {
     id: "golojan",
     name: "Golojan",
     type: "oauth",
-    issuer: "https://accounts.golojan.com/oauth2",
     authorization,
     token,
     userinfo,
@@ -54,7 +50,7 @@ export default function GolojanProvider<P extends GolojanProfile>(
   }
 }
 
-function resolveAuthorization(
+function normalizeAuthorization(
   authorization?: OAuthUserConfig<GolojanProfile>["authorization"],
 ): OAuthConfig<GolojanProfile>["authorization"] {
   if (typeof authorization === "string") {
@@ -63,7 +59,6 @@ function resolveAuthorization(
 
   const params = {
     scope: DEFAULT_SCOPE,
-    response_type: "code",
     ...(authorization?.params ?? {}),
   }
 
@@ -73,27 +68,50 @@ function resolveAuthorization(
   }
 }
 
-function mergeChecks(checks?: OAuthConfig<GolojanProfile>["checks"]): OAuthConfig<GolojanProfile>["checks"] {
-  const base: Array<"pkce" | "state"> = ["pkce", "state"]
-  if (!checks || checks.length === 0) {
-    return base
+type ProviderCheck = "pkce" | "state" | "none"
+
+function normalizeChecks(
+  checks?: OAuthConfig<GolojanProfile>["checks"],
+): OAuthConfig<GolojanProfile>["checks"] {
+  const merged = new Set<ProviderCheck>(["pkce", "state"])
+
+  if (checks) {
+    for (const value of checks) {
+      if (isProviderCheck(value)) {
+        merged.add(value)
+      }
+    }
   }
 
-  const merged = new Set([...checks, ...base])
   return Array.from(merged) as OAuthConfig<GolojanProfile>["checks"]
 }
 
+function isProviderCheck(value: unknown): value is ProviderCheck {
+  return value === "pkce" || value === "state" || value === "none"
+}
+
+function normalizeClient(
+  client?: OAuthConfig<GolojanProfile>["client"],
+): OAuthConfig<GolojanProfile>["client"] {
+  if (!client) {
+    return { token_endpoint_auth_method: "client_secret_post" }
+  }
+
+  return {
+    token_endpoint_auth_method: "client_secret_post",
+    ...client,
+  }
+}
+
 function mapProfile(profile: GolojanProfile) {
-  const identifier = profile.id ?? profile.sub ?? ""
+  const identifier = profile.id ?? profile.sub
   if (!identifier) {
     throw new Error("Golojan profile payload did not include an id or sub field")
   }
 
-  const composedName = composeName(profile)
-
   return {
     id: identifier,
-    name: composedName,
+    name: composeName(profile),
     email: profile.email ?? null,
     image: profile.avatar ?? profile.picture ?? null,
   }
