@@ -13,6 +13,9 @@
     "strict": true,
     "baseUrl": ".",
     "skipLibCheck": true,
+    "paths": {
+      "src/*": ["src/*"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules"]

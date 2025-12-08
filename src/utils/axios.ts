@@ -1,5 +1,5 @@
 import axios from "axios";
-import { authConfig } from "src/env";
+import { authConfig } from "../env";
 
 if (!authConfig || !authConfig.API_URL) {
     throw new Error("API_URL is not defined in authConfig");
