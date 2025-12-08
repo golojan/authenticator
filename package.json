@@ -1,6 +1,6 @@
 {
   "name": "@golojan/auth",
-  "version": "1.6.2",
+  "version": "1.6.1",
   "private": false,
   "description": "Golojan OAuth helper for generating authorization URLs with PKCE support.",
   "keywords": [
@@ -55,6 +55,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
+    "@auth/core": "0.34.3",
     "axios": "1.13.2",
     "next-auth": "4.24.13"
   }

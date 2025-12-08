@@ -42,6 +42,7 @@ export default function GolojanProvider<P extends GolojanProfile>(
     id: "golojan",
     name: "Golojan",
     type: "oauth" as const,
+    version: "2.0",
     authorization,
     token,
     userinfo,
@@ -98,7 +99,6 @@ function normalizeClient(
   if (!client) {
     return { token_endpoint_auth_method: "client_secret_post" }
   }
-
   return {
     token_endpoint_auth_method: "client_secret_post",
     ...client,
@@ -110,7 +110,6 @@ function mapProfile(profile: GolojanProfile) {
   if (!identifier) {
     throw new Error("Golojan profile payload did not include an id or sub field")
   }
-
   return {
     id: identifier,
     name: composeName(profile),
@@ -123,7 +122,6 @@ function composeName(profile: GolojanProfile): string | null {
   if (typeof profile.name === "string" && profile.name.trim().length > 0) {
     return profile.name
   }
-
   const parts = [profile.firstName, profile.lastName]
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
 
