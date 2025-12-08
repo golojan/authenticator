@@ -19,6 +19,8 @@ const USERINFO_URL = "https://accounts.golojan.com/oauth2/userinfo"
 export default function GolojanProvider<P extends GolojanProfile>(
   options: OAuthUserConfig<P>,
 ): OAuthConfig<P> {
+  const { type: _ignoredType, ...baseOptions } = options as OAuthUserConfig<P> & { type?: unknown }
+
   const {
     authorization: userAuthorization,
     token: userToken,
@@ -27,7 +29,7 @@ export default function GolojanProvider<P extends GolojanProfile>(
     checks: userChecks,
     client: userClient,
     ...rest
-  } = options
+  } = baseOptions
 
   const authorization = normalizeAuthorization(userAuthorization)
   const token = userToken ?? { url: TOKEN_URL }
@@ -39,7 +41,7 @@ export default function GolojanProvider<P extends GolojanProfile>(
   return {
     id: "golojan",
     name: "Golojan",
-    type: "oauth",
+    type: "oauth" as const,
     authorization,
     token,
     userinfo,
