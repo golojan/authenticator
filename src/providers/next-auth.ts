@@ -1,5 +1,4 @@
-import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers"
-
+import { OIDCConfig, OIDCUserConfig } from "@auth/core/providers"
 export interface GolojanProfile extends Record<string, unknown> {
   sub?: string
   id?: string
@@ -17,9 +16,9 @@ const TOKEN_URL = "https://accounts.golojan.com/oauth2/token"
 const USERINFO_URL = "https://accounts.golojan.com/oauth2/userinfo"
 
 export default function GolojanProvider<P extends GolojanProfile>(
-  options: OAuthUserConfig<P>,
-): OAuthConfig<P> {
-  const { type: _ignoredType, ...baseOptions } = options as OAuthUserConfig<P> & { type?: unknown }
+  options: OIDCUserConfig<P>,
+): OIDCConfig<P> {
+  const { type: _ignoredType, ...baseOptions } = options as OIDCUserConfig<P> & { type?: unknown }
 
   const {
     authorization: userAuthorization,
@@ -41,8 +40,7 @@ export default function GolojanProvider<P extends GolojanProfile>(
   return {
     id: "golojan",
     name: "Golojan",
-    type: "oauth" as const,
-    version: "2.0",
+    type: "oidc" as const,
     authorization,
     token,
     userinfo,
@@ -54,8 +52,8 @@ export default function GolojanProvider<P extends GolojanProfile>(
 }
 
 function normalizeAuthorization(
-  authorization?: OAuthUserConfig<GolojanProfile>["authorization"],
-): OAuthConfig<GolojanProfile>["authorization"] {
+  authorization?: OIDCUserConfig<GolojanProfile>["authorization"],
+): OIDCConfig<GolojanProfile>["authorization"] {
   if (typeof authorization === "string") {
     return authorization
   }
@@ -74,8 +72,8 @@ function normalizeAuthorization(
 type ProviderCheck = "pkce" | "state" | "none"
 
 function normalizeChecks(
-  checks?: OAuthConfig<GolojanProfile>["checks"],
-): OAuthConfig<GolojanProfile>["checks"] {
+  checks?: OIDCConfig<GolojanProfile>["checks"],
+): OIDCConfig<GolojanProfile>["checks"] {
   const merged = new Set<ProviderCheck>(["pkce", "state"])
 
   if (checks) {
@@ -86,7 +84,7 @@ function normalizeChecks(
     }
   }
 
-  return Array.from(merged) as OAuthConfig<GolojanProfile>["checks"]
+  return Array.from(merged) as OIDCConfig<GolojanProfile>["checks"]
 }
 
 function isProviderCheck(value: unknown): value is ProviderCheck {
@@ -94,8 +92,8 @@ function isProviderCheck(value: unknown): value is ProviderCheck {
 }
 
 function normalizeClient(
-  client?: OAuthConfig<GolojanProfile>["client"],
-): OAuthConfig<GolojanProfile>["client"] {
+  client?: OIDCConfig<GolojanProfile>["client"],
+): OIDCConfig<GolojanProfile>["client"] {
   if (!client) {
     return { token_endpoint_auth_method: "client_secret_post" }
   }
